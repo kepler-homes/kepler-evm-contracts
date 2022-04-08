@@ -34,6 +34,8 @@ interface INFTMarket {
         address buyer;
     }
 
+    function feeRate() external view returns (uint256);
+
     function getSupportedCurrencies()
         external
         view
@@ -52,7 +54,6 @@ interface INFTMarket {
         uint256 tokenId,
         address currency,
         uint256 price,
-        uint256 fee,
         uint256 deadline
     ) external pure returns (bytes32);
 
@@ -62,7 +63,6 @@ interface INFTMarket {
         uint256 tokenId,
         address currency,
         uint256 price,
-        uint256 fee,
         uint256 deadline,
         bytes memory signature
     ) external;

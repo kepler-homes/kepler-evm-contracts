@@ -6,13 +6,10 @@ import "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.
 import "@openzeppelin/contracts-upgradeable/security/PausableUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/token/ERC721/IERC721ReceiverUpgradeable.sol";
-import "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
 import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "../libraries/SafeDecimalMath.sol";
 import "../libraries/Signature.sol";
-import "../swap/libraries/TransferHelper.sol";
-import "../common/IWOKT.sol";
 import "./interfaces/INFTMarket.sol";
 import "./interfaces/IKeplerNFT.sol";
 
@@ -43,15 +40,19 @@ contract NFTMarket is
     EnumerableSet.AddressSet private _supportedNFTs;
     mapping(uint256 => EnumerableSet.UintSet) private _statusItemMap;
 
-    function initialize(address signer_, address feeWallet_)
-        public
-        initializer
-    {
+    uint256 public override feeRate;
+
+    function initialize(
+        address signer_,
+        address feeWallet_,
+        uint256 feeRate_
+    ) public initializer {
         __Ownable_init();
         __ReentrancyGuard_init();
         __Pausable_init();
         signer = signer_;
         feeWallet = feeWallet_;
+        feeRate = feeRate_;
         _supportedCurrencies.add(address(0));
     }
 
@@ -126,20 +127,11 @@ contract NFTMarket is
         uint256 tokenId,
         address currency,
         uint256 price,
-        uint256 fee,
         uint256 deadline
     ) public pure override returns (bytes32) {
         return
             keccak256(
-                abi.encodePacked(
-                    id,
-                    nft,
-                    tokenId,
-                    currency,
-                    price,
-                    fee,
-                    deadline
-                )
+                abi.encodePacked(id, nft, tokenId, currency, price, deadline)
             );
     }
 
@@ -149,7 +141,6 @@ contract NFTMarket is
         uint256 tokenId,
         address currency,
         uint256 price,
-        uint256 fee,
         uint256 deadline,
         bytes memory signature
     ) external override nonReentrant whenNotPaused {
@@ -163,7 +154,7 @@ contract NFTMarket is
         );
         require(
             Signature.getSigner(
-                encode(id, nft, tokenId, currency, price, fee, deadline),
+                encode(id, nft, tokenId, currency, price, deadline),
                 signature
             ) == signer,
             "VERIFY_FAILED"
@@ -177,6 +168,7 @@ contract NFTMarket is
 
         IKeplerNFT(nft).transferFrom(msg.sender, address(this), tokenId);
 
+        uint256 fee = price.multiplyDecimal(feeRate);
         Item memory item;
         item.status = STATUS_OPEN;
         item.id = id;
@@ -282,5 +274,9 @@ contract NFTMarket is
             bytes4(
                 keccak256("onERC721Received(address,address,uint256,bytes)")
             );
+    }
+
+    function updateFeeRate(uint256 val) public onlyOwner {
+        feeRate = val;
     }
 }
