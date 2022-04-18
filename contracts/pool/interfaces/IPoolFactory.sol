@@ -19,7 +19,7 @@ interface IPoolFactory {
         uint256 tvl;
         uint256 apy;
         uint256 pendingRewards;
-        uint256 myDepoistAmount;
+        uint256 mydepositAmount;
         uint256 maxLockUnits;
         uint256 lockUnitDuration;
         uint256 lockUnitMultiplier;

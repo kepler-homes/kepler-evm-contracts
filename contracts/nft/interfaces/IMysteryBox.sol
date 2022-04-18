@@ -25,6 +25,12 @@ interface IMysteryBox is
         uint256[] nftTokenIds
     );
 
+    event UpdateReferenceConfig(ReferenceConfig config);
+
+    event UpdatePaymentConfig(PaymentConfig config);
+
+    event UpdateMintConfig(MintConfig config);
+
     struct ReferralClaimRecord {
         uint256 amount;
         uint256 time;

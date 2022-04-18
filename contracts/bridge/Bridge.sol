@@ -13,10 +13,10 @@ contract Bridge is IBridge, OwnableUpgradeable {
     using EnumerableSet for EnumerableSet.AddressSet;
     using EnumerableSet for EnumerableSet.UintSet;
 
-    mapping(address => mapping(address => EnumerableSet.UintSet))
+    mapping(bytes32 => mapping(bytes32 => EnumerableSet.UintSet))
         private _userNFTs;
 
-    mapping(address => mapping(address => uint256)) private _userTokens;
+    mapping(bytes32 => mapping(bytes32 => uint256)) private _userTokens;
 
     EnumerableSet.AddressSet private _signers;
     EnumerableSet.AddressSet private _supportedNFTs;
@@ -31,7 +31,10 @@ contract Bridge is IBridge, OwnableUpgradeable {
     mapping(uint256 => NFTOrder) private _nftClaimOrders;
 
     function initialize(address signer_, address feeToken_) public initializer {
+        require(signer_ != address(0), "INVALID_SIGNER");
+        require(feeToken_ != address(0), "INVALID_SIGNER");
         __Ownable_init();
+
         _signers.add(signer_);
         feeToken = feeToken_;
     }
@@ -42,10 +45,10 @@ contract Bridge is IBridge, OwnableUpgradeable {
 
     function keccak256ApplyTokenArgs(
         uint256 orderId,
-        address applicant,
-        address receipient,
+        bytes32 applicant,
+        bytes32 receipient,
         uint256 fromChainId,
-        address fromNFT,
+        bytes32 fromNFT,
         uint256 amount,
         uint256 toChainId,
         uint256 fee,
@@ -69,10 +72,10 @@ contract Bridge is IBridge, OwnableUpgradeable {
 
     function applyToken(
         uint256 orderId,
-        address applicant,
-        address receipient,
+        bytes32 applicant,
+        bytes32 receipient,
         uint256 fromChainId,
-        address fromToken,
+        bytes32 fromToken,
         uint256 amount,
         uint256 toChainId,
         uint256 fee,
@@ -96,9 +99,10 @@ contract Bridge is IBridge, OwnableUpgradeable {
             _signers.contains(Signature.getSigner(argsHash, signature)),
             "VERIFY_FAILED"
         );
-
-        require(_supportedTokens.contains(fromToken), "UNSUPPORTED_TOKEN");
-        require(applicant == msg.sender, "INVALID_APPLICANT");
+        address token = bytes32ToAddress(fromToken);
+        address to = bytes32ToAddress(applicant);
+        require(_supportedTokens.contains(token), "UNSUPPORTED_TOKEN");
+        require(to == msg.sender, "INVALID_APPLICANT");
         require(!_orderIds.contains(orderId), "ORDER_ID_EXISTS");
         _orderIds.add(orderId);
 
@@ -111,7 +115,7 @@ contract Bridge is IBridge, OwnableUpgradeable {
             fromToken,
             amount
         );
-        IToken(fromToken).transferFrom(applicant, address(this), amount);
+        IToken(token).transferFrom(to, address(this), amount);
         emit ApplyToken(
             orderId,
             applicant,
@@ -142,10 +146,10 @@ contract Bridge is IBridge, OwnableUpgradeable {
 
     function keccak256ApplyNFTArgs(
         uint256 orderId,
-        address applicant,
-        address receipient,
+        bytes32 applicant,
+        bytes32 receipient,
         uint256 fromChainId,
-        address fromNFT,
+        bytes32 fromNFT,
         uint256[] memory fromTokenIds,
         uint256 toChainId,
         uint256 fee,
@@ -169,10 +173,10 @@ contract Bridge is IBridge, OwnableUpgradeable {
 
     function applyNFT(
         uint256 orderId,
-        address applicant,
-        address receipient,
+        bytes32 applicant,
+        bytes32 receipient,
         uint256 fromChainId,
-        address fromNFT,
+        bytes32 fromNFT,
         uint256[] memory fromTokenIds,
         uint256 toChainId,
         uint256 fee,
@@ -180,23 +184,29 @@ contract Bridge is IBridge, OwnableUpgradeable {
         bytes memory signature
     ) external payable override {
         require(deadline > block.timestamp, "EXPIRED");
-        bytes32 argsHash = keccak256ApplyNFTArgs(
-            orderId,
-            applicant,
-            receipient,
-            fromChainId,
-            fromNFT,
-            fromTokenIds,
-            toChainId,
-            fee,
-            deadline
-        );
         require(
-            _signers.contains(Signature.getSigner(argsHash, signature)),
+            _signers.contains(
+                Signature.getSigner(
+                    keccak256ApplyNFTArgs(
+                        orderId,
+                        applicant,
+                        receipient,
+                        fromChainId,
+                        fromNFT,
+                        fromTokenIds,
+                        toChainId,
+                        fee,
+                        deadline
+                    ),
+                    signature
+                )
+            ),
             "VERIFY_FAILED"
         );
-        require(_supportedNFTs.contains(fromNFT), "UNSUPPORTED_NFT");
-        require(applicant == msg.sender, "INVALID_APPLICANT");
+
+        address nft = bytes32ToAddress(fromNFT);
+        require(_supportedNFTs.contains(nft), "UNSUPPORTED_NFT");
+        require(bytes32ToAddress(applicant) == msg.sender, "INVALID_APPLICANT");
         require(!_orderIds.contains(orderId), "ORDER_ID_EXISTS");
         _orderIds.add(orderId);
         _nftApplyOrders[orderId] = NFTOrder(
@@ -211,11 +221,7 @@ contract Bridge is IBridge, OwnableUpgradeable {
         for (uint256 i; i < fromTokenIds.length; i++) {
             uint256 tokenId = fromTokenIds[i];
             _userNFTs[applicant][fromNFT].add(tokenId);
-            IKeplerNFT(fromNFT).transferFrom(
-                msg.sender,
-                address(this),
-                tokenId
-            );
+            IKeplerNFT(nft).transferFrom(msg.sender, address(this), tokenId);
         }
 
         emit ApplyNFT(
@@ -232,10 +238,10 @@ contract Bridge is IBridge, OwnableUpgradeable {
 
     function keccak256ClaimNFTArgs(
         uint256 orderId,
-        address applicant,
-        address receipient,
+        bytes32 applicant,
+        bytes32 receipient,
         uint256 toChainId,
-        address toNFT,
+        bytes32 toNFT,
         uint256[] memory tokenIds,
         uint256 deadline
     ) public pure override returns (bytes32) {
@@ -253,12 +259,16 @@ contract Bridge is IBridge, OwnableUpgradeable {
             );
     }
 
+    function bytes32ToAddress(bytes32 _input) private pure returns (address) {
+        return address(uint160(uint256(_input)));
+    }
+
     function claimNFT(
         uint256 orderId,
-        address applicant,
-        address receipient,
+        bytes32 applicant,
+        bytes32 receipient,
         uint256 toChainId,
-        address toNFT,
+        bytes32 toNFT,
         uint256[] memory tokenIds,
         uint256 deadline,
         bytes memory signature
@@ -279,25 +289,24 @@ contract Bridge is IBridge, OwnableUpgradeable {
             "VERIFY_FAILED"
         );
 
-        require(
-            msg.sender == applicant || msg.sender == receipient,
-            "ACCESS_DENIED"
-        );
+        address nft = bytes32ToAddress(toNFT);
+        address to = bytes32ToAddress(receipient);
+        require(msg.sender == to, "ACCESS_DENIED");
         require(!_orderIds.contains(orderId), "ORDER_ID_EXISTS");
         _orderIds.add(orderId);
-        require(_supportedNFTs.contains(toNFT), "UNSUPPORTED_NFT");
+        require(_supportedNFTs.contains(nft), "UNSUPPORTED_NFT");
 
         for (uint256 i; i < tokenIds.length; i++) {
-            IKeplerNFT nft = IKeplerNFT(toNFT);
+            IKeplerNFT keplerNFT = IKeplerNFT(nft);
             uint256 tokenId = tokenIds[i];
-            if (nft.exists(tokenId)) {
+            if (keplerNFT.exists(tokenId)) {
                 require(
-                    nft.ownerOf(tokenId) == address(this),
+                    keplerNFT.ownerOf(tokenId) == address(this),
                     "INVALID_NFT_OWNER"
                 );
-                nft.transferFrom(address(this), receipient, tokenId);
+                keplerNFT.transferFrom(address(this), to, tokenId);
             } else {
-                nft.mintTo(receipient, tokenId);
+                keplerNFT.mintTo(to, tokenId);
             }
         }
         _nftClaimOrders[orderId] = NFTOrder(
@@ -318,10 +327,10 @@ contract Bridge is IBridge, OwnableUpgradeable {
 
     function keccak256ClaimTokenArgs(
         uint256 orderId,
-        address applicant,
-        address receipient,
+        bytes32 applicant,
+        bytes32 receipient,
         uint256 toChainId,
-        address toToken,
+        bytes32 toToken,
         uint256 amount,
         uint256 deadline
     ) public pure override returns (bytes32) {
@@ -341,10 +350,10 @@ contract Bridge is IBridge, OwnableUpgradeable {
 
     function claimToken(
         uint256 orderId,
-        address applicant,
-        address receipient,
+        bytes32 applicant,
+        bytes32 receipient,
         uint256 toChainId,
-        address toToken,
+        bytes32 toToken,
         uint256 amount,
         uint256 deadline,
         bytes memory signature
@@ -363,11 +372,9 @@ contract Bridge is IBridge, OwnableUpgradeable {
             _signers.contains(Signature.getSigner(argsHash, signature)),
             "VERIFY_FAILED"
         );
-
-        require(
-            msg.sender == applicant || msg.sender == receipient,
-            "ACCESS_DENIED"
-        );
+        address to = bytes32ToAddress(receipient);
+        address token = bytes32ToAddress(toToken);
+        require(msg.sender == to, "ACCESS_DENIED");
         require(!_orderIds.contains(orderId), "ORDER_ID_EXISTS");
         _orderIds.add(orderId);
         _tokenClaimOrders[orderId] = TokenOrder(
@@ -377,9 +384,8 @@ contract Bridge is IBridge, OwnableUpgradeable {
             amount
         );
 
-        require(_supportedTokens.contains(toToken), "UNSUPPORTED_TOKEN");
-
-        IToken(toToken).mint(receipient, amount);
+        require(_supportedTokens.contains(token), "UNSUPPORTED_TOKEN");
+        IToken(token).transfer(to, amount);
         emit ClaimToken(
             orderId,
             applicant,
@@ -392,6 +398,7 @@ contract Bridge is IBridge, OwnableUpgradeable {
 
     function addSupportedNFTs(address[] memory items) public onlyOwner {
         for (uint256 i = 0; i < items.length; i++) {
+            require(items[i] != address(0), "INVALID_NFT");
             _supportedNFTs.add(items[i]);
         }
     }
@@ -416,6 +423,7 @@ contract Bridge is IBridge, OwnableUpgradeable {
 
     function addSupportedTokens(address[] memory items) public onlyOwner {
         for (uint256 i = 0; i < items.length; i++) {
+            require(items[i] != address(0), "INVALID_TOKEN");
             _supportedTokens.add(items[i]);
         }
     }

@@ -45,6 +45,9 @@ contract RewardPool is CorePool, IRewardPool {
             maxLockUnits_
         );
         nextRewardId = 20220219;
+
+        require(withdrawInterval_ > 0, "INVALID_WITHDRAW_INTERVAL");
+        require(rewardMultiplier_ > 0, "INVALID_REWARD_MULTIPLIER");
         withdrawInterval = withdrawInterval_;
         rewardMultiplier = rewardMultiplier_;
     }
@@ -69,36 +72,50 @@ contract RewardPool is CorePool, IRewardPool {
             lockedRewardId
         ];
         require(lockedReward.amount > 0, "INVALID_REWARD");
-        uint256 passedTime = block.timestamp - lockedReward.lastWithdrawTime;
-        uint256 maxWithdrawCount = passedTime / withdrawInterval;
+        uint256 passedTime = block.timestamp - lockedReward.lockTime;
+
+        uint256 maxWithdrawCount = SafeDecimalMath.min(
+            passedTime / withdrawInterval,
+            WITHDRAW_COUNT
+        );
+
         require(
             maxWithdrawCount > lockedReward.withdrawCount,
             "INVALID_WITHDRAW_TIME"
         );
 
+        uint256 pendingWithdrawCount = maxWithdrawCount -
+            lockedReward.withdrawCount;
+
         uint256 _deductAmount = lockedReward.amount / WITHDRAW_COUNT;
+
         uint256 _weightedAmount = _deductAmount.multiplyDecimal(
             rewardMultiplier
         );
+
         uint256 withdrawAmount = _deductAmount +
             getWithdrawReward(lockedReward);
 
-        if (lockedReward.withdrawCount == WITHDRAW_COUNT - 1) {
+        if (
+            lockedReward.withdrawCount + pendingWithdrawCount == WITHDRAW_COUNT
+        ) {
             delete _userLockedRewards[staker][lockedRewardId];
             _userLockedRewardIds[staker].remove(lockedRewardId);
         } else {
-            lockedReward.withdrawCount += 1;
+            lockedReward.withdrawCount += pendingWithdrawCount;
             lockedReward.lastWithdrawTime = block.timestamp;
             lockedReward.index = rewardIndex;
-            lockedReward.remaingAmount -= _deductAmount;
+            lockedReward.remaingAmount -= _deductAmount * pendingWithdrawCount;
             _userLockedRewards[staker][lockedRewardId] = lockedReward;
         }
 
-        depoistAmount -= _deductAmount;
-        lockedRewardAmount -= _deductAmount;
-        extraWeightedAmount -= _weightedAmount;
-        extraLockedRewardWeightedAmount -= _weightedAmount;
-        IToken(rewardToken).transfer(to, withdrawAmount);
+        depositAmount -= _deductAmount * pendingWithdrawCount;
+        lockedRewardAmount -= _deductAmount * pendingWithdrawCount;
+        extraWeightedAmount -= _weightedAmount * pendingWithdrawCount;
+        extraLockedRewardWeightedAmount -=
+            _weightedAmount *
+            pendingWithdrawCount;
+        IToken(rewardToken).transfer(to, withdrawAmount * pendingWithdrawCount);
     }
 
     function lockReward(
@@ -131,7 +148,7 @@ contract RewardPool is CorePool, IRewardPool {
             depositId: depositId
         });
 
-        depoistAmount += amount;
+        depositAmount += amount;
         extraWeightedAmount += weightedAmount;
 
         lockedRewardAmount += amount;

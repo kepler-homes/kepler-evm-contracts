@@ -26,6 +26,7 @@ contract Oracle is OwnableUpgradeable, IOracle {
     function updatePrices(address[] memory assets, uint256[] memory prices)
         external
     {
+        require(assets.length == prices.length, "INVALID_PRAMETERS");
         for (uint256 i; i < assets.length; i++) {
             (address asset, uint256 price) = (assets[i], prices[i]);
             _assets.add(asset);

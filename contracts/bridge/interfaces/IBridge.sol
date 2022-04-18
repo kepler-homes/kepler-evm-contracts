@@ -4,10 +4,10 @@ pragma solidity ^0.8.4;
 interface IBridge {
     event ApplyNFT(
         uint256 orderId,
-        address applicant,
-        address receipient,
+        bytes32 applicant,
+        bytes32 receipient,
         uint256 fromChainId,
-        address fromNFT,
+        bytes32 fromNFT,
         uint256[] fromTokenIds,
         uint256 toChainId,
         uint256 fee
@@ -15,19 +15,19 @@ interface IBridge {
 
     event ClaimNFT(
         uint256 orderId,
-        address applicant,
-        address receipient,
+        bytes32 applicant,
+        bytes32 receipient,
         uint256 toChainId,
-        address toToken,
+        bytes32 toToken,
         uint256[] toTokenIds
     );
 
     event ApplyToken(
         uint256 orderId,
-        address applicant,
-        address receipient,
+        bytes32 applicant,
+        bytes32 receipient,
         uint256 fromChainId,
-        address fromToken,
+        bytes32 fromToken,
         uint256 amount,
         uint256 toChainId,
         uint256 fee
@@ -35,24 +35,24 @@ interface IBridge {
 
     event ClaimToken(
         uint256 orderId,
-        address applicant,
-        address receipient,
+        bytes32 applicant,
+        bytes32 receipient,
         uint256 toChainId,
-        address toToken,
+        bytes32 toToken,
         uint256 amount
     );
 
     struct TokenOrder {
-        address applicant;
-        address receipient;
-        address token;
+        bytes32 applicant;
+        bytes32 receipient;
+        bytes32 token;
         uint256 amount;
     }
 
     struct NFTOrder {
-        address applicant;
-        address receipient;
-        address nft;
+        bytes32 applicant;
+        bytes32 receipient;
+        bytes32 nft;
         uint256[] tokenIds;
     }
 
@@ -87,10 +87,10 @@ interface IBridge {
 
     function keccak256ApplyNFTArgs(
         uint256 orderId,
-        address applicant,
-        address receipient,
+        bytes32 applicant,
+        bytes32 receipient,
         uint256 fromChainId,
-        address fromNFT,
+        bytes32 fromNFT,
         uint256[] memory fromTokenIds,
         uint256 toChainId,
         uint256 fee,
@@ -99,10 +99,10 @@ interface IBridge {
 
     function applyNFT(
         uint256 orderId,
-        address applicant,
-        address receipient,
+        bytes32 applicant,
+        bytes32 receipient,
         uint256 fromChainId,
-        address fromNFT,
+        bytes32 fromNFT,
         uint256[] memory fromTokenIds,
         uint256 toChainId,
         uint256 fee,
@@ -112,20 +112,20 @@ interface IBridge {
 
     function keccak256ClaimNFTArgs(
         uint256 orderId,
-        address applicant,
-        address receipient,
+        bytes32 applicant,
+        bytes32 receipient,
         uint256 toChainId,
-        address toNFT,
+        bytes32 toNFT,
         uint256[] memory tokenIds,
         uint256 deadline
     ) external pure returns (bytes32);
 
     function claimNFT(
         uint256 orderId,
-        address applicant,
-        address receipient,
+        bytes32 applicant,
+        bytes32 receipient,
         uint256 toChainId,
-        address toNFT,
+        bytes32 toNFT,
         uint256[] memory tokenIds,
         uint256 deadline,
         bytes memory signature
@@ -133,10 +133,10 @@ interface IBridge {
 
     function keccak256ApplyTokenArgs(
         uint256 orderId,
-        address applicant,
-        address receipient,
+        bytes32 applicant,
+        bytes32 receipient,
         uint256 fromChainId,
-        address fromToken,
+        bytes32 fromToken,
         uint256 amount,
         uint256 toChainId,
         uint256 fee,
@@ -145,10 +145,10 @@ interface IBridge {
 
     function applyToken(
         uint256 orderId,
-        address applicant,
-        address receipient,
+        bytes32 applicant,
+        bytes32 receipient,
         uint256 fromChainId,
-        address fromToken,
+        bytes32 fromToken,
         uint256 amount,
         uint256 toChainId,
         uint256 fee,
@@ -158,20 +158,20 @@ interface IBridge {
 
     function keccak256ClaimTokenArgs(
         uint256 orderId,
-        address applicant,
-        address receipient,
+        bytes32 applicant,
+        bytes32 receipient,
         uint256 toChainId,
-        address toToken,
+        bytes32 toToken,
         uint256 amount,
         uint256 deadline
     ) external pure returns (bytes32);
 
     function claimToken(
         uint256 orderId,
-        address applicant,
-        address receipient,
+        bytes32 applicant,
+        bytes32 receipient,
         uint256 toChainId,
-        address toToken,
+        bytes32 toToken,
         uint256 amount,
         uint256 deadline,
         bytes memory signature

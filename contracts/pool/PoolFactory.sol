@@ -70,6 +70,7 @@ contract PoolFactory is OwnableUpgradeable, IPoolFactory {
         external
         onlyOwner
     {
+        require(pools.length == weights.length, "INVALID_PARAMETERS");
         for (uint256 i; i < pools.length; i++) {
             (address pool, uint256 weight) = (pools[i], weights[i]);
             _depositPools.add(pool);
@@ -120,7 +121,7 @@ contract PoolFactory is OwnableUpgradeable, IPoolFactory {
                 depositPool.depositToken()
             );
 
-            uint256 tvl = depositPool.depoistAmount().multiplyDecimal(
+            uint256 tvl = depositPool.depositAmount().multiplyDecimal(
                 depositTokenPrice
             );
             DepositPool.Deposit[] memory deposits = depositPool.getUserDepoists(
@@ -165,11 +166,11 @@ contract PoolFactory is OwnableUpgradeable, IPoolFactory {
         returns (DepoistPoolView memory)
     {
         DepositPool depositPool = DepositPool(pool);
-        uint256 depoistAmount = depositPool.depoistAmount();
+        uint256 depositAmount = depositPool.depositAmount();
         uint256 depositTokenPrice = IOracle(_oracle).queryPrice(
             depositPool.depositToken()
         );
-        uint256 tvl = depoistAmount.multiplyDecimal(depositTokenPrice);
+        uint256 tvl = depositAmount.multiplyDecimal(depositTokenPrice);
 
         uint256 totalRewards = depositPool.totalRewards();
         uint256 claimedRewards = depositPool.claimedRewards();
@@ -181,7 +182,7 @@ contract PoolFactory is OwnableUpgradeable, IPoolFactory {
                 tvl: tvl,
                 apy: calculateBasicAPY(pool, tvl),
                 pendingRewards: totalRewards - claimedRewards,
-                myDepoistAmount: depositPool.userTotalDeposits(staker),
+                mydepositAmount: depositPool.userTotalDeposits(staker),
                 maxLockUnits: depositPool.maxLockUnits(),
                 lockUnitDuration: depositPool.lockUnitDuration(),
                 lockUnitMultiplier: depositPool.lockUnitMultiplier()
@@ -198,7 +199,7 @@ contract PoolFactory is OwnableUpgradeable, IPoolFactory {
         RewardPool.LockedReward[] memory lockedRewards = rewardPool
             .getLockedRewards(staker);
 
-        uint256 depositAmount = rewardPool.depoistAmount();
+        uint256 depositAmount = rewardPool.depositAmount();
         uint256 depositTokenPrice = IOracle(_oracle).queryPrice(rewardToken);
         uint256 tvl = depositAmount.multiplyDecimal(depositTokenPrice);
         uint256 basicAPY = calculateBasicAPY(_rewardPool, tvl);
@@ -265,8 +266,8 @@ contract PoolFactory is OwnableUpgradeable, IPoolFactory {
         for (uint256 i = 0; i < _depositPools.length(); i++) {
             DepositPool pool = DepositPool(_depositPools.at(i));
             address depositToken = pool.depositToken();
-            uint256 depoistAmount = pool.depoistAmount();
-            totalStakedValue += depoistAmount.multiplyDecimal(
+            uint256 depositAmount = pool.depositAmount();
+            totalStakedValue += depositAmount.multiplyDecimal(
                 oracle.queryPrice(depositToken)
             );
 

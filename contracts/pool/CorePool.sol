@@ -1,7 +1,6 @@
 
 pragma solidity ^0.8.4;
 
-import "hardhat/console.sol";
 import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol";
@@ -26,7 +25,7 @@ abstract contract CorePool is
 
     uint256 public nextDepositId;
 
-    uint256 public depoistAmount;
+    uint256 public depositAmount;
     uint256 public extraWeightedAmount;
     uint256 public rewardIndex;
     uint256 public totalRewards;
@@ -120,7 +119,7 @@ abstract contract CorePool is
             lockUnits: lockUnits
         });
         userTotalDeposits[staker] += amount;
-        depoistAmount += amount;
+        depositAmount += amount;
         extraWeightedAmount += _extraWeightedAmount;
 
         emit Stake(amount, lockUnits, depositId);
@@ -134,18 +133,16 @@ abstract contract CorePool is
     }
 
     function yield() public {
-        uint256 stakingAmount = depoistAmount + extraWeightedAmount;
-        console.log("yield(),stakingAmount", stakingAmount);
+        uint256 stakingAmount = depositAmount + extraWeightedAmount;
+
         if (stakingAmount > 0) {
             if (lastYieldBlock > 0) {
-                console.log("yield(),lastYieldBlock", lastYieldBlock);
                 uint256 blocks = block.number - lastYieldBlock;
                 if (blocks > 0) {
                     uint256 rewardsPerBlock = IPoolFactory(poolFactory)
                         .getRewardsPerBlock(address(this));
 
                     uint256 yieldAmount = blocks * rewardsPerBlock;
-                    console.log("yield(),yieldAmount", yieldAmount);
                     if (yieldAmount > 0) {
                         IPoolFactory(poolFactory).mint(
                             rewardToken,
@@ -155,8 +152,6 @@ abstract contract CorePool is
 
                         totalRewards += yieldAmount;
                         rewardIndex += yieldAmount.divideDecimal(stakingAmount);
-                        console.log("yield(),totalRewards", totalRewards);
-                        console.log("yield(),rewardIndex", rewardIndex);
                     }
                 }
             }
@@ -178,14 +173,6 @@ abstract contract CorePool is
         uint256 balance = IToken(rewardToken).balanceOf(address(this));
         uint256 rewardAmount = stakingAmount.multiplyDecimal(index);
 
-        console.log("_pendingReward(),rewardIndex", rewardIndex);
-        console.log("_pendingReward(),deposit.index", deposit.index);
-        console.log("_pendingReward(),index", index);
-        console.log("_pendingReward(),rewardAmount", rewardAmount);
-        console.log(
-            "_pendingReward(),rewardToken.balanceOf(this)",
-            IToken(rewardToken).balanceOf(address(this))
-        );
         return balance.min(rewardAmount);
     }
 
@@ -202,15 +189,15 @@ abstract contract CorePool is
         uint256 depositId,
         address to
     ) internal {
-        (uint256 depositAmount, uint256 rewardAmount) = _unstake(
+        (uint256 _depositAmount, uint256 _rewardAmount) = _unstake(
             staker,
             depositId
         );
-        IToken(depositToken).transfer(to, depositAmount);
-        if (rewardAmount > 0) {
+        IToken(depositToken).transfer(to, _depositAmount);
+        if (_rewardAmount > 0) {
             IRewardPool(rewardPool).lockReward(
                 to,
-                rewardAmount,
+                _rewardAmount,
                 address(this),
                 depositToken,
                 depositId
@@ -220,7 +207,7 @@ abstract contract CorePool is
 
     function _unstake(address staker, uint256 depositId)
         internal
-        returns (uint256 depositAmount, uint256 rewardAmount)
+        returns (uint256 _depositAmount, uint256 _rewardAmount)
     {
         yield();
         Deposit memory deposit = _userDeposits[staker][depositId];
@@ -230,15 +217,15 @@ abstract contract CorePool is
                 deposit.lockUnits * lockUnitDuration,
             "INVALID_UNSTAKE_TIME"
         );
-        depositAmount = deposit.amount;
-        rewardAmount = _pendingReward(staker, depositId);
+        _depositAmount = deposit.amount;
+        _rewardAmount = _pendingReward(staker, depositId);
         delete _userDeposits[staker][depositId];
         _userDepoistIds[staker].remove(depositId);
-        userTotalDeposits[staker] -= depositAmount;
-        depoistAmount -= deposit.amount;
-        extraWeightedAmount -= extraWeightedAmount;
+        userTotalDeposits[staker] -= _depositAmount;
+        depositAmount -= deposit.amount;
+        extraWeightedAmount -= deposit.extraWeightedAmount;
 
-        emit Unstake(depositAmount, depositId, rewardAmount);
+        emit Unstake(_depositAmount, depositId, _rewardAmount);
     }
 
     function pendingReward(address staker, uint256 depositId)

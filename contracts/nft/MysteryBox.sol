@@ -55,19 +55,36 @@ contract MysteryBox is
         paymentConfig.genisTime = _currentTimestamp();
     }
 
-    function updateReferenceConfig(ReferenceConfig memory val)
+    function updateReferenceConfig(ReferenceConfig memory config)
         public
         onlyOwner
     {
-        referenceConfig = val;
+        require(config.cliamInterval > 0, "INVALID_CLAIM_INTERVAL");
+        require(config.cliamCount > 0, "INVALID_CLAIM_COUNT");
+        require(config.rewardRate > 0, "INVALID_REWARD_RATE");
+        referenceConfig = config;
+        emit UpdateReferenceConfig(config);
     }
 
-    function updateMintConfig(MintConfig memory val) public onlyOwner {
-        mintConfig = val;
+    function updateMintConfig(MintConfig memory config) public onlyOwner {
+        require(config.maleMax > 0, "INVALID_MALE_MAX");
+        require(config.femaleMax > 0, "INVALID_FEMALE_MAX");
+        mintConfig = config;
+        emit UpdateMintConfig(config);
     }
 
-    function updatePaymentConfig(PaymentConfig memory val) public onlyOwner {
-        paymentConfig = val;
+    function updatePaymentConfig(PaymentConfig memory config) public onlyOwner {
+        require(
+            config.startPrice > 0 &&
+                config.priceAdjustInterval > 0 &&
+                config.maxPrice > config.startPrice &&
+                config.genisTime > 0 &&
+                config.priceStep > 0,
+            "INVALID_CONFIG"
+        );
+
+        paymentConfig = config;
+        emit UpdatePaymentConfig(config);
     }
 
     function queryPaymentConfig()
@@ -170,16 +187,15 @@ contract MysteryBox is
 
     function _price() private view returns (uint256) {
         uint256 passedSeconds = _currentTimestamp() - paymentConfig.genisTime;
-        uint256 result = paymentConfig.priceStep *
+        uint256 price = paymentConfig.priceStep *
             (passedSeconds / paymentConfig.priceAdjustInterval) +
             paymentConfig.startPrice;
 
-        if (result > paymentConfig.maxPrice) {
-            result = paymentConfig.maxPrice;
-        } else if (paymentConfig.maxPrice - result <= paymentConfig.priceStep) {
-            result = paymentConfig.maxPrice;
+        if (price >= paymentConfig.maxPrice - paymentConfig.priceStep) {
+            price = paymentConfig.maxPrice;
         }
-        return result;
+
+        return price;
     }
 
     function keccak256MintArgs(address sender, address referral)
@@ -321,7 +337,7 @@ contract MysteryBox is
         returns (ItemView[] memory items)
     {
         uint256 maleCount = _genderTokenIds[MALE].length();
-        uint256 femaleCount = _genderTokenIds[MALE].length();
+        uint256 femaleCount = _genderTokenIds[FEMALE].length();
         items = new ItemView[](maleCount + femaleCount);
         uint256 index;
 

@@ -1,6 +1,5 @@
 
 pragma solidity ^0.8.4;
-import "hardhat/console.sol";
 import "@openzeppelin/contracts/token/ERC721/extensions/IERC721Metadata.sol";
 import "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/security/PausableUpgradeable.sol";
@@ -84,6 +83,7 @@ contract NFTMarket is
     }
 
     function setFeeWallet(address val) public onlyOwner {
+        require(val != address(0), "INVALID_FEE_WALELT");
         feeWallet = val;
     }
 
@@ -232,7 +232,7 @@ contract NFTMarket is
     {
         items = new Item[](_statusItemMap[status].length());
         for (uint256 i; i < items.length; i++) {
-            items[i] = _items[_statusItemMap[STATUS_OPEN].at(i)];
+            items[i] = _items[_statusItemMap[status].at(i)];
         }
     }
 
