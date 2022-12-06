@@ -4,11 +4,11 @@ pragma solidity ^0.8.4;
 import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import "../libraries/SafeDecimalMath.sol";
-import "../tokens/interfaces/IToken.sol";
-import "../oracle/interfaces/IOracle.sol";
+import "../tokens/IToken.sol";
+import "../oracle/IOracle.sol";
 import "./RewardPool.sol";
 import "./DepositPool.sol";
-import "./interfaces/IPoolFactory.sol";
+import "./IPoolFactory.sol";
 
 contract PoolFactory is OwnableUpgradeable, IPoolFactory {
     using EnumerableSet for EnumerableSet.AddressSet;
@@ -78,18 +78,6 @@ contract PoolFactory is OwnableUpgradeable, IPoolFactory {
             _poolWeights[pool] = weight;
             totalWeight = totalWeight + weight - oldWeight;
         }
-    }
-
-    function mint(
-        address token,
-        address to,
-        uint256 amount
-    ) external override {
-        require(
-            _depositPools.contains(msg.sender) || msg.sender == owner(),
-            "INVALID_ACCESS"
-        );
-        IToken(token).mint(to, amount);
     }
 
     function getRewardsPerBlock(address pool)

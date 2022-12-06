@@ -4,14 +4,18 @@ pragma solidity ^0.8.4;
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "../nft/interfaces/IKeplerNFT.sol";
-import "../tokens/interfaces/IToken.sol";
+import "../swap/libraries/TransferHelper.sol";
+import "../nft/IKeplerNFT.sol";
+import "../tokens/IToken.sol";
+import "../libraries/SafeDecimalMath.sol";
 import "../libraries/Signature.sol";
-import "./interfaces/IBridge.sol";
+import "../common/SafeAccess.sol";
+import "./IBridge.sol";
 
-contract Bridge is IBridge, OwnableUpgradeable {
+contract Bridge is IBridge, OwnableUpgradeable, SafeAccess {
     using EnumerableSet for EnumerableSet.AddressSet;
     using EnumerableSet for EnumerableSet.UintSet;
+    using SafeDecimalMath for uint256;
 
     mapping(bytes32 => mapping(bytes32 => EnumerableSet.UintSet))
         private _userNFTs;
@@ -23,20 +27,39 @@ contract Bridge is IBridge, OwnableUpgradeable {
     EnumerableSet.AddressSet private _supportedTokens;
     EnumerableSet.UintSet private _orderIds;
 
-    address public override feeToken;
+    uint256 public override tokenFeeRate;
+    address public override nftFeeCurrency;
+    uint256 public override nftFee;
 
     mapping(uint256 => TokenOrder) private _tokenApplyOrders;
     mapping(uint256 => TokenOrder) private _tokenClaimOrders;
     mapping(uint256 => NFTOrder) private _nftApplyOrders;
     mapping(uint256 => NFTOrder) private _nftClaimOrders;
 
-    function initialize(address signer_, address feeToken_) public initializer {
-        require(signer_ != address(0), "INVALID_SIGNER");
-        require(feeToken_ != address(0), "INVALID_SIGNER");
+    function initialize(
+        address signer_,
+        uint256 tokenFeeRate_,
+        address nftFeeCurrency_,
+        uint256 nftFee_
+    ) public initializer {
         __Ownable_init();
 
         _signers.add(signer_);
-        feeToken = feeToken_;
+        tokenFeeRate = tokenFeeRate_;
+        nftFeeCurrency = nftFeeCurrency_;
+        nftFee = nftFee_;
+    }
+
+    function updateTokenFeeRate(uint256 v) public onlyOwner {
+        tokenFeeRate = v;
+    }
+
+    function updateNftFeeCurrency(address v) public onlyOwner {
+        nftFeeCurrency = v;
+    }
+
+    function updateNftFee(uint256 v) public onlyOwner {
+        nftFee = v;
     }
 
     function keccak256String(string memory val) public pure returns (bytes32) {
@@ -51,7 +74,6 @@ contract Bridge is IBridge, OwnableUpgradeable {
         bytes32 fromNFT,
         uint256 amount,
         uint256 toChainId,
-        uint256 fee,
         uint256 deadline
     ) public pure override returns (bytes32) {
         return
@@ -64,7 +86,6 @@ contract Bridge is IBridge, OwnableUpgradeable {
                     fromNFT,
                     amount,
                     toChainId,
-                    fee,
                     deadline
                 )
             );
@@ -78,10 +99,9 @@ contract Bridge is IBridge, OwnableUpgradeable {
         bytes32 fromToken,
         uint256 amount,
         uint256 toChainId,
-        uint256 fee,
         uint256 deadline,
         bytes memory signature
-    ) external payable override {
+    ) external payable override isNotContractCall {
         require(deadline > block.timestamp, "EXPIRED");
         bytes32 argsHash = keccak256ApplyTokenArgs(
             orderId,
@@ -91,7 +111,6 @@ contract Bridge is IBridge, OwnableUpgradeable {
             fromToken,
             amount,
             toChainId,
-            fee,
             deadline
         );
 
@@ -106,7 +125,8 @@ contract Bridge is IBridge, OwnableUpgradeable {
         require(!_orderIds.contains(orderId), "ORDER_ID_EXISTS");
         _orderIds.add(orderId);
 
-        _tansferFee(fee);
+        uint256 fee = amount.multiplyDecimal(tokenFeeRate);
+        _tansferFee(bytes32ToAddress(fromToken), fee);
 
         _userTokens[applicant][fromToken] += amount;
         _tokenApplyOrders[orderId] = TokenOrder(
@@ -128,19 +148,19 @@ contract Bridge is IBridge, OwnableUpgradeable {
         );
     }
 
-    function _tansferFee(uint256 fee) private {
-        if (feeToken == address(0)) {
+    function _tansferFee(address currency, uint256 fee) private {
+        if (currency == address(0)) {
             require(msg.value >= fee, "INSUFFICIENT_FEE");
         } else {
             require(
-                IERC20(feeToken).balanceOf(msg.sender) >= fee,
+                IERC20(currency).balanceOf(msg.sender) >= fee,
                 "INSUFFICIENT_FEE_TOKEN_BALANCE"
             );
             require(
-                IERC20(feeToken).allowance(msg.sender, address(this)) >= fee,
+                IERC20(currency).allowance(msg.sender, address(this)) >= fee,
                 "INSUFFICIENT_FEE_TOKEN_ALLOWANCE"
             );
-            IERC20(feeToken).transferFrom(msg.sender, address(this), fee);
+            IERC20(currency).transferFrom(msg.sender, address(this), fee);
         }
     }
 
@@ -152,7 +172,6 @@ contract Bridge is IBridge, OwnableUpgradeable {
         bytes32 fromNFT,
         uint256[] memory fromTokenIds,
         uint256 toChainId,
-        uint256 fee,
         uint256 deadline
     ) public pure override returns (bytes32) {
         return
@@ -165,7 +184,6 @@ contract Bridge is IBridge, OwnableUpgradeable {
                     fromNFT,
                     fromTokenIds,
                     toChainId,
-                    fee,
                     deadline
                 )
             );
@@ -179,10 +197,9 @@ contract Bridge is IBridge, OwnableUpgradeable {
         bytes32 fromNFT,
         uint256[] memory fromTokenIds,
         uint256 toChainId,
-        uint256 fee,
         uint256 deadline,
         bytes memory signature
-    ) external payable override {
+    ) external payable override isNotContractCall {
         require(deadline > block.timestamp, "EXPIRED");
         require(
             _signers.contains(
@@ -195,7 +212,6 @@ contract Bridge is IBridge, OwnableUpgradeable {
                         fromNFT,
                         fromTokenIds,
                         toChainId,
-                        fee,
                         deadline
                     ),
                     signature
@@ -216,7 +232,7 @@ contract Bridge is IBridge, OwnableUpgradeable {
             fromTokenIds
         );
 
-        _tansferFee(fee);
+        _tansferFee(nftFeeCurrency, nftFee);
 
         for (uint256 i; i < fromTokenIds.length; i++) {
             uint256 tokenId = fromTokenIds[i];
@@ -232,7 +248,7 @@ contract Bridge is IBridge, OwnableUpgradeable {
             fromNFT,
             fromTokenIds,
             toChainId,
-            fee
+            nftFee
         );
     }
 
@@ -272,7 +288,7 @@ contract Bridge is IBridge, OwnableUpgradeable {
         uint256[] memory tokenIds,
         uint256 deadline,
         bytes memory signature
-    ) external override {
+    ) external override isNotContractCall {
         require(deadline > block.timestamp, "EXPIRED");
         bytes32 argsHash = keccak256ClaimNFTArgs(
             orderId,
@@ -357,7 +373,7 @@ contract Bridge is IBridge, OwnableUpgradeable {
         uint256 amount,
         uint256 deadline,
         bytes memory signature
-    ) external override {
+    ) external override isNotContractCall {
         require(deadline > block.timestamp, "EXPIRED");
         bytes32 argsHash = keccak256ClaimTokenArgs(
             orderId,
@@ -480,5 +496,17 @@ contract Bridge is IBridge, OwnableUpgradeable {
         returns (NFTOrder memory)
     {
         return _nftClaimOrders[orderId];
+    }
+
+    function emergencyWithdraw(
+        address token,
+        address to,
+        uint256 amount
+    ) public onlyOwner {
+        if (token == address(0)) {
+            TransferHelper.safeTransferETH(to, amount);
+        } else {
+            TransferHelper.safeTransfer(token, to, amount);
+        }
     }
 }

@@ -5,15 +5,18 @@ import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol";
 import "../libraries/SafeDecimalMath.sol";
-import "../tokens/interfaces/IToken.sol";
-import "./interfaces/IRewardPool.sol";
-import "./interfaces/ICorePool.sol";
-import "./interfaces/IPoolFactory.sol";
+import "../swap/libraries/TransferHelper.sol";
+import "../tokens/IToken.sol";
+import "./IRewardPool.sol";
+import "./ICorePool.sol";
+import "./IPoolFactory.sol";
+import "../common/SafeAccess.sol";
 
 abstract contract CorePool is
     ICorePool,
     OwnableUpgradeable,
-    ReentrancyGuardUpgradeable
+    ReentrancyGuardUpgradeable,
+    SafeAccess
 {
     using SafeMath for uint256;
     using SafeDecimalMath for uint256;
@@ -63,7 +66,11 @@ abstract contract CorePool is
         IToken(rewardToken).approve(rewardPool, type(uint256).max);
     }
 
-    function stake(uint256 amount, uint256 lockUnits) external override {
+    function stake(uint256 amount, uint256 lockUnits)
+        external
+        override
+        isNotContractCall
+    {
         _stakeTo(amount, lockUnits, msg.sender);
     }
 
@@ -71,7 +78,7 @@ abstract contract CorePool is
         uint256 amount,
         uint256 lockUnits,
         address to
-    ) external {
+    ) external isNotContractCall {
         _stakeTo(amount, lockUnits, to);
     }
 
@@ -79,7 +86,7 @@ abstract contract CorePool is
         uint256 amount,
         uint256 lockUnits,
         address to
-    ) public {
+    ) private {
         IToken token = IToken(depositToken);
         uint256 balance = token.balanceOf(address(this));
         token.transferFrom(msg.sender, address(this), amount);
@@ -144,12 +151,6 @@ abstract contract CorePool is
 
                     uint256 yieldAmount = blocks * rewardsPerBlock;
                     if (yieldAmount > 0) {
-                        IPoolFactory(poolFactory).mint(
-                            rewardToken,
-                            address(this),
-                            yieldAmount
-                        );
-
                         totalRewards += yieldAmount;
                         rewardIndex += yieldAmount.divideDecimal(stakingAmount);
                     }
@@ -176,11 +177,14 @@ abstract contract CorePool is
         return balance.min(rewardAmount);
     }
 
-    function unstake(uint256 depositId) external override {
+    function unstake(uint256 depositId) external override isNotContractCall {
         _unstakeTo(msg.sender, depositId, msg.sender);
     }
 
-    function unstakeTo(uint256 depositId, address to) external {
+    function unstakeTo(uint256 depositId, address to)
+        external
+        isNotContractCall
+    {
         _unstakeTo(msg.sender, depositId, to);
     }
 
@@ -237,11 +241,11 @@ abstract contract CorePool is
         return _pendingReward(staker, depositId);
     }
 
-    function claim(uint256 depositId) external override {
+    function claim(uint256 depositId) external override isNotContractCall {
         _claimTo(msg.sender, depositId, msg.sender);
     }
 
-    function claimTo(uint256 depositId, address to) external {
+    function claimTo(uint256 depositId, address to) external isNotContractCall {
         _claimTo(msg.sender, depositId, to);
     }
 
@@ -297,6 +301,18 @@ abstract contract CorePool is
         deposits = new Deposit[](_userDepoistIds[staker].length());
         for (uint256 i; i < deposits.length; i++) {
             deposits[i] = _userDeposits[staker][_userDepoistIds[staker].at(i)];
+        }
+    }
+
+     function emergencyWithdraw(
+        address token,
+        address to,
+        uint256 amount
+    ) public onlyOwner {
+        if (token == address(0)) {
+            TransferHelper.safeTransferETH(to, amount);
+        } else {
+            TransferHelper.safeTransfer(token, to, amount);
         }
     }
 }

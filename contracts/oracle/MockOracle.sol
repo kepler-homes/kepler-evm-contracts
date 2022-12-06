@@ -4,9 +4,9 @@ pragma solidity ^0.8.4;
 import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 
-import "./interfaces/IOracle.sol";
+import "./IOracle.sol";
 
-contract Oracle is OwnableUpgradeable, IOracle {
+contract MockOracle is OwnableUpgradeable, IOracle {
     using EnumerableSet for EnumerableSet.AddressSet;
 
     mapping(address => uint256) private _assetPrices;
@@ -45,18 +45,6 @@ contract Oracle is OwnableUpgradeable, IOracle {
             address asset = _assets.at(i);
             assets[i] = asset;
             prices[i] = _assetPrices[asset];
-        }
-    }
-
-    function queryPrices(address[] memory assets)
-        public
-        view
-        override
-        returns (uint256[] memory prices)
-    {
-        prices = new uint256[](assets.length);
-        for (uint256 i = assets.length - 1; i >= 0; i--) {
-            prices[i] = _assetPrices[assets[i]];
         }
     }
 

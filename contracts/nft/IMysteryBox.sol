@@ -25,21 +25,17 @@ interface IMysteryBox is
         uint256[] nftTokenIds
     );
 
-    event UpdateReferenceConfig(ReferenceConfig config);
+    event UpdateReferralConfig(ReferralConfig config);
 
     event UpdatePaymentConfig(PaymentConfig config);
 
     event UpdateMintConfig(MintConfig config);
 
-    struct ReferralClaimRecord {
-        uint256 amount;
-        uint256 time;
-    }
-
-    struct ReferenceConfig {
-        uint256 cliamInterval;
-        uint256 cliamCount;
+    struct ReferralConfig {
+        address rewardToken;
         uint256 rewardRate;
+        uint256 claimStartTime;
+        uint256 cliamPrice;
     }
 
     struct PaymentConfig {
@@ -49,6 +45,7 @@ interface IMysteryBox is
         uint256 maxPrice;
         uint256 genisTime;
         uint256 priceStep;
+        uint8 whitelistDiscount;
     }
 
     struct MintConfig {
@@ -57,14 +54,9 @@ interface IMysteryBox is
     }
 
     struct VariableView {
-        address currency;
-        uint256 startPrice;
-        uint256 priceAdjustInterval;
-        uint256 maxPrice;
         uint256 currentPrice;
-        uint256 genisTime;
-        uint256 maleInventory;
-        uint256 femaleInventory;
+        uint256 maleMintedCount;
+        uint256 femaleMintedCount;
     }
 
     struct Item {
@@ -77,6 +69,10 @@ interface IMysteryBox is
         bool isSuit;
         uint8 gender;
         uint8 nftCount;
+        uint256 cost;
+        uint256 claimTime;
+        uint256 claimeAmount;
+        bool isWhitelisted;
     }
 
     struct ItemView {
@@ -88,16 +84,15 @@ interface IMysteryBox is
         uint256 fee;
     }
 
+    function openStartTime() external view returns (uint256);
+
     function allItems() external view returns (ItemView[] memory items);
 
     function getMintCount(address user) external view returns (uint8);
 
     function getVariableView() external view returns (VariableView memory);
 
-    function keccak256MintArgs(address sender, address referral)
-        external
-        pure
-        returns (bytes32);
+    function keccak256MintArgs(address sender) external pure returns (bytes32);
 
     function mint(
         bool isSuit,
@@ -141,21 +136,25 @@ interface IMysteryBox is
         address referral
     ) external view returns (Item[] memory items);
 
+    function queryReferralReward(
+        address referal,
+        uint256 tokenId
+    ) external view returns (int256);
+
     function claimReferralReward(
         uint256 tokenId
     ) external;
 
-    function queryReferralClaimRecords(uint256 tokenId)
-        external
-        view
-        returns (ReferralClaimRecord[] memory records);
+    function batchClaimReferralRewards(uint256[] memory tokenIds) external;
 
     function queryPaymentConfig() external view returns (PaymentConfig memory);
 
-    function queryReferenceConfig()
+    function queryReferralConfig()
         external
         view
-        returns (ReferenceConfig memory);
+        returns (ReferralConfig memory);
 
     function queryMintConfig() external view returns (MintConfig memory);
+
+    function queryItem(uint256 tokenId) external view returns (Item memory);
 }

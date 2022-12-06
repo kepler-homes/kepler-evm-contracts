@@ -76,7 +76,11 @@ interface IBridge {
         view
         returns (NFTOrder memory);
 
-    function feeToken() external view returns (address);
+    function tokenFeeRate() external view returns (uint256);
+
+    function nftFeeCurrency() external view returns (address);
+
+    function nftFee() external view returns (uint256);
 
     function getSupportedNFTs() external view returns (address[] memory nfts);
 
@@ -93,7 +97,6 @@ interface IBridge {
         bytes32 fromNFT,
         uint256[] memory fromTokenIds,
         uint256 toChainId,
-        uint256 fee,
         uint256 deadline
     ) external pure returns (bytes32);
 
@@ -105,7 +108,6 @@ interface IBridge {
         bytes32 fromNFT,
         uint256[] memory fromTokenIds,
         uint256 toChainId,
-        uint256 fee,
         uint256 deadline,
         bytes memory signature
     ) external payable;
@@ -139,7 +141,6 @@ interface IBridge {
         bytes32 fromToken,
         uint256 amount,
         uint256 toChainId,
-        uint256 fee,
         uint256 deadline
     ) external pure returns (bytes32);
 
@@ -151,7 +152,6 @@ interface IBridge {
         bytes32 fromToken,
         uint256 amount,
         uint256 toChainId,
-        uint256 fee,
         uint256 deadline,
         bytes memory signature
     ) external payable;

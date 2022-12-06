@@ -7,17 +7,20 @@ import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/token/ERC721/IERC721ReceiverUpgradeable.sol";
 import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "../swap/libraries/TransferHelper.sol";
 import "../libraries/SafeDecimalMath.sol";
 import "../libraries/Signature.sol";
-import "./interfaces/INFTMarket.sol";
-import "./interfaces/IKeplerNFT.sol";
+import "./INFTMarket.sol";
+import "./IKeplerNFT.sol";
+import "../common/SafeAccess.sol";
 
 contract NFTMarket is
     IERC721ReceiverUpgradeable,
     ReentrancyGuardUpgradeable,
     PausableUpgradeable,
     OwnableUpgradeable,
-    INFTMarket
+    INFTMarket,
+    SafeAccess
 {
     using EnumerableSet for EnumerableSet.AddressSet;
     using EnumerableSet for EnumerableSet.UintSet;
@@ -30,8 +33,7 @@ contract NFTMarket is
     uint8 public constant STATUS_SUCCESS = 2;
     uint8 public constant STATUS_CLOSE = 3;
 
-    address public weth;
-    address public feeWallet;
+    address public transactionFeeWallet;
 
     mapping(uint256 => Item) private _items;
     EnumerableSet.UintSet private _itemIds;
@@ -39,19 +41,19 @@ contract NFTMarket is
     EnumerableSet.AddressSet private _supportedNFTs;
     mapping(uint256 => EnumerableSet.UintSet) private _statusItemMap;
 
-    uint256 public override feeRate;
+    uint256 public override transactionFeeRate;
 
     function initialize(
         address signer_,
-        address feeWallet_,
-        uint256 feeRate_
+        address transactionFeeWallet_,
+        uint256 transactionFeeRate_
     ) public initializer {
         __Ownable_init();
         __ReentrancyGuard_init();
         __Pausable_init();
         signer = signer_;
-        feeWallet = feeWallet_;
-        feeRate = feeRate_;
+        transactionFeeWallet = transactionFeeWallet_;
+        transactionFeeRate = transactionFeeRate_;
         _supportedCurrencies.add(address(0));
     }
 
@@ -82,9 +84,9 @@ contract NFTMarket is
         }
     }
 
-    function setFeeWallet(address val) public onlyOwner {
+    function updateTransactionFeeWallet(address val) public onlyOwner {
         require(val != address(0), "INVALID_FEE_WALELT");
-        feeWallet = val;
+        transactionFeeWallet = val;
     }
 
     function getItem(uint256 itemId)
@@ -101,6 +103,7 @@ contract NFTMarket is
         override
         nonReentrant
         whenNotPaused
+        isNotContractCall
     {
         Item memory item = _items[itemId];
         require(item.status == STATUS_OPEN, "ITEM_STATUS_NOT_OPEN");
@@ -118,7 +121,6 @@ contract NFTMarket is
         item.status = STATUS_CLOSE;
         _statusItemMap[item.status].add(item.id);
         _items[itemId] = item;
-        emit Close(itemId);
     }
 
     function encode(
@@ -143,7 +145,7 @@ contract NFTMarket is
         uint256 price,
         uint256 deadline,
         bytes memory signature
-    ) external override nonReentrant whenNotPaused {
+    ) external override nonReentrant whenNotPaused isNotContractCall {
         require(deadline > block.timestamp, "EXPIRED");
         require(tokenId != 0, "INVALID_TOKEN_ID");
         require(price > 0, "INVALID_PRICE");
@@ -168,7 +170,6 @@ contract NFTMarket is
 
         IKeplerNFT(nft).transferFrom(msg.sender, address(this), tokenId);
 
-        uint256 fee = price.multiplyDecimal(feeRate);
         Item memory item;
         item.status = STATUS_OPEN;
         item.id = id;
@@ -176,13 +177,10 @@ contract NFTMarket is
         item.tokenId = tokenId;
         item.currency = currency;
         item.price = price;
-        item.fee = fee;
         item.seller = msg.sender;
         _itemIds.add(item.id);
         _items[item.id] = item;
         _statusItemMap[item.status].add(item.id);
-
-        emit Open(id, nft, tokenId, currency, price, fee);
     }
 
     function buy(uint256 itemId)
@@ -191,37 +189,41 @@ contract NFTMarket is
         override
         nonReentrant
         whenNotPaused
+        isNotContractCall
     {
         Item memory item = _items[itemId];
         require(item.status == STATUS_OPEN, "ITEM_STATUS_NOT_OPEN");
         _statusItemMap[item.status].remove(item.id);
-        uint256 price = item.price;
+
         item.status = STATUS_SUCCESS;
         item.buyer = msg.sender;
         _items[itemId] = item;
         _statusItemMap[item.status].add(item.id);
 
-        uint256 fee = item.fee;
-        uint256 purchase = price.sub(fee);
-        if (item.currency == address(0)) {
-            require(msg.value == price, "INVALID_WETH_AMOUNT");
-            payable(item.seller).transfer(purchase);
-        } else {
-            IERC20(item.currency).transferFrom(msg.sender, feeWallet, fee);
-            IERC20(item.currency).transferFrom(
-                msg.sender,
-                item.seller,
-                purchase
-            );
+        _receive(item.currency, item.price);
+
+        uint256 tokenAmount = item.price;
+        (address royaltyReceiver, uint256 royaltyAmount) = IKeplerNFT(item.nft)
+            .royaltyInfo(item.tokenId, item.price);
+
+        if (royaltyAmount > 0 && royaltyReceiver != address(0)) {
+            tokenAmount -= royaltyAmount;
+            _transfer(item.currency, royaltyReceiver, royaltyAmount);
         }
+
+        uint256 feeAmount = item.price.multiplyDecimal(transactionFeeRate);
+        if (feeAmount > 0 && transactionFeeWallet != address(0)) {
+            tokenAmount -= feeAmount;
+            _transfer(item.currency, transactionFeeWallet, feeAmount);
+        }
+
+        _transfer(item.currency, item.seller, tokenAmount);
 
         IERC721Metadata(item.nft).transferFrom(
             address(this),
             msg.sender,
             item.tokenId
         );
-
-        emit Buy(itemId, msg.sender, item.price, item.fee);
     }
 
     function getItems(uint8 status)
@@ -276,7 +278,35 @@ contract NFTMarket is
             );
     }
 
-    function updateFeeRate(uint256 val) public onlyOwner {
-        feeRate = val;
+    function updateTransactionFeeRate(uint256 val) public onlyOwner {
+        transactionFeeRate = val;
+    }
+
+    function emergencyWithdraw(
+        address token,
+        address to,
+        uint256 amount
+    ) public onlyOwner {
+        _transfer(token, to, amount);
+    }
+
+    function _receive(address currency, uint256 amount) private {
+        if (currency == address(0)) {
+            require(msg.value == amount, "INVALID_MSG_VALUE");
+        } else {
+            IERC20(currency).transferFrom(msg.sender, address(this), amount);
+        }
+    }
+
+    function _transfer(
+        address token,
+        address to,
+        uint256 amount
+    ) private {
+        if (token == address(0)) {
+            TransferHelper.safeTransferETH(to, amount);
+        } else {
+            TransferHelper.safeTransfer(token, to, amount);
+        }
     }
 }

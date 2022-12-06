@@ -64,10 +64,4 @@ interface IPoolFactory {
         returns (LockedRewardView[] memory);
 
     function getRewardsPerBlock(address pool) external view returns (uint256);
-
-    function mint(
-        address token,
-        address to,
-        uint256 amount
-    ) external;
 }

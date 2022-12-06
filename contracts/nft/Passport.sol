@@ -6,17 +6,37 @@ import "@openzeppelin/contracts-upgradeable/token/ERC721/extensions/ERC721Enumer
 import "@openzeppelin/contracts-upgradeable/token/common/ERC2981Upgradeable.sol";
 import "@openzeppelin/contracts/utils/Strings.sol";
 import "../common/Minable.sol";
-import "./IKeplerNFT.sol";
+import "./IPassport.sol";
 
-contract KeplerNFT is
+contract Passport is
     ERC721EnumerableUpgradeable,
     ERC2981Upgradeable,
     OwnableUpgradeable,
     Minable,
-    IKeplerNFT
+    IPassport
 {
     using Strings for uint256;
     string public baseURI;
+    uint256 public nextTokenId;
+
+    uint256 public override points;
+
+    function initialize(
+        string memory name_,
+        string memory symbol_,
+        string memory baseURI_,
+        address minter_,
+        uint256 points_
+    ) public initializer {
+        __Ownable_init();
+        __ERC2981_init();
+        __ERC721_init(name_, symbol_);
+        baseURI = baseURI_;
+        addMinter(msg.sender);
+        addMinter(minter_);
+        points = points_;
+        nextTokenId = 1001;
+    }
 
     function supportsInterface(bytes4 interfaceId)
         public
@@ -29,47 +49,34 @@ contract KeplerNFT is
         returns (bool)
     {
         return
-            interfaceId == type(IKeplerNFT).interfaceId ||
+            interfaceId == type(IPassport).interfaceId ||
             ERC721EnumerableUpgradeable.supportsInterface(interfaceId) ||
             ERC721EnumerableUpgradeable.supportsInterface(interfaceId) ||
             ERC2981Upgradeable.supportsInterface(interfaceId);
-    }
-
-    function initialize(
-        string memory name_,
-        string memory symbol_,
-        string memory baseURI_
-    ) public initializer {
-        __Ownable_init();
-        __ERC2981_init();
-        __ERC721_init(name_, symbol_);
-        baseURI = baseURI_;
-        addMinter(msg.sender);
     }
 
     function updateBaseURI(string memory val) public onlyOwner {
         baseURI = val;
     }
 
-    function mintTo(address to, uint256 tokenId)
-        public
-        virtual
-        override
-        onlyMinter
-    {
-        _mint(to, tokenId);
+    function mint(address to) public override onlyMinter returns (uint256) {
+        return _mintTo(to);
     }
 
-    function batchMintTo(address to, uint256[] memory tokenIds)
-        public
-        onlyMinter
-    {
-        for (uint256 i = 0; i < tokenIds.length; i++) {
-            _mint(to, tokenIds[i]);
+    function _mintTo(address to) private returns (uint256) {
+        uint256 tokenId = nextTokenId;
+        nextTokenId++;
+        _mint(to, tokenId);
+        return tokenId;
+    }
+
+    function batchMint(address to, uint256 count) public onlyMinter {
+        for (uint256 i; i < count; i++) {
+            _mintTo(to);
         }
     }
 
-    function burn(uint256 tokenId) public virtual override {
+    function burn(uint256 tokenId) public override {
         require(_isApprovedOrOwner(msg.sender, tokenId), "INVALID_ACCESS");
         _burn(tokenId);
         _resetTokenRoyalty(tokenId);
@@ -88,14 +95,16 @@ contract KeplerNFT is
         }
     }
 
+    function queryBaseURI() public view returns (string memory) {
+        return baseURI;
+    }
+
     function tokenURI(uint256 tokenId)
         public
         view
-        virtual
         override(ERC721Upgradeable, IERC721MetadataUpgradeable)
         returns (string memory)
     {
-        require(_exists(tokenId), "INVALID_TOKEN_ID");
         return string(abi.encodePacked(baseURI, tokenId.toString()));
     }
 

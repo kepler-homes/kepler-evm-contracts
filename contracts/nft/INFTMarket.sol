@@ -9,32 +9,18 @@ interface INFTMarket {
         bytes data
     );
 
-    event Open(
-        uint256 id,
-        address nft,
-        uint256 tokenId,
-        address currency,
-        uint256 price,
-        uint256 fee
-    );
-
-    event Buy(uint256 itemId, address buyer, uint256 price, uint256 fee);
-
-    event Close(uint256 itemId);
-
     struct Item {
         uint256 id;
         address nft;
         uint256 tokenId;
         address currency;
         uint256 price;
-        uint256 fee;
         uint8 status;
         address seller;
         address buyer;
     }
 
-    function feeRate() external view returns (uint256);
+    function transactionFeeRate() external view returns (uint256);
 
     function getSupportedCurrencies()
         external

@@ -52,13 +52,19 @@ contract RewardPool is CorePool, IRewardPool {
         rewardMultiplier = rewardMultiplier_;
     }
 
-    function withdraw(uint256 lockedRewardId) external override nonReentrant {
+    function withdraw(uint256 lockedRewardId)
+        external
+        override
+        nonReentrant
+        isNotContractCall
+    {
         _withdraw(msg.sender, lockedRewardId, msg.sender);
     }
 
     function withdrawTo(uint256 lockedRewardId, address to)
         external
         nonReentrant
+        isNotContractCall
     {
         _withdraw(msg.sender, lockedRewardId, to);
     }
@@ -124,7 +130,7 @@ contract RewardPool is CorePool, IRewardPool {
         address depositPool,
         address depositToken,
         uint256 depositId
-    ) external override {
+    ) external override isNotContractCall {
         require(_depositPools.contains(msg.sender), "ACCESS_DENIED");
 
         if (msg.sender != address(this)) {
