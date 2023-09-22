@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT
 
 pragma solidity ^0.8.4;
 
@@ -40,14 +41,9 @@ contract PassportMine is
 
     mapping(address => ReferenceRecording[]) private _referenceRecordings;
 
-    mapping(address => mapping(address => uint256))
-        private _userPassportBuyAmounts;
+    mapping(address => mapping(address => uint256)) private _userPassportBuyAmounts;
 
-    function initialize(
-        address signer,
-        address currency,
-        address vault
-    ) public initializer {
+    function initialize(address signer, address currency, address vault) public initializer {
         __Ownable_init();
         __ReentrancyGuard_init();
         __Pausable_init();
@@ -56,53 +52,30 @@ contract PassportMine is
         _vault = vault;
     }
 
-    function updateKeplerPassportPublicConfig(
-        KeplerPassportPublicConfig memory val
-    ) public onlyOwner {
+    function updateKeplerPassportPublicConfig(KeplerPassportPublicConfig memory val) public onlyOwner {
         _keplerPassportPublicConfig = val;
     }
 
-    function updateKeplerPassportPromotionConfig(
-        KeplerPassportPromotionConfig memory val
-    ) public onlyOwner {
+    function updateKeplerPassportPromotionConfig(KeplerPassportPromotionConfig memory val) public onlyOwner {
         _keplerPassportPromotionConfig = val;
     }
 
-    function updateUniversePassportConfig(UniversePassportConfig memory val)
-        public
-        onlyOwner
-    {
+    function updateUniversePassportConfig(UniversePassportConfig memory val) public onlyOwner {
         _universePassportConfig = val;
     }
 
-    function queryBuyAmount(address user, address passport)
-        external
-        view
-        override
-        returns (uint256)
-    {
+    function queryBuyAmount(address user, address passport) external view override returns (uint256) {
         return _userPassportBuyAmounts[user][passport];
     }
 
-    function queryGlobalView()
-        external
-        view
-        override
-        returns (GlobalView memory globalView)
-    {
+    function queryGlobalView() external view override returns (GlobalView memory globalView) {
         globalView = GlobalView({
             keplerPassportPublicConfig: _keplerPassportPublicConfig,
             keplerPassportPromotionConfig: _keplerPassportPromotionConfig,
             universePassportConfig: _universePassportConfig,
-            keplerPassportPublicSaleAmount: _passportSaleAmounts[
-                ITEM_KEPLER_PUBLIC_SALE_AMOUNT
-            ],
-            keplerPassportPromotionSaleAmount: _passportSaleAmounts[
-                ITEM_KEPLER_PROMOTION_SALE_AMOUNT
-            ],
-            universePassportSaleAmount: _passportSaleAmounts[
-                ITEM_UNIVERSE_SALE_AMOUNT
-            ]
+            keplerPassportPublicSaleAmount: _passportSaleAmounts[ITEM_KEPLER_PUBLIC_SALE_AMOUNT],
+            keplerPassportPromotionSaleAmount: _passportSaleAmounts[ITEM_KEPLER_PROMOTION_SALE_AMOUNT],
+            universePassportSaleAmount: _passportSaleAmounts[ITEM_UNIVERSE_SALE_AMOUNT]
         });
     }
 
@@ -117,14 +90,9 @@ contract PassportMine is
         require(msg.sender != referrer, "INVALID_REFERRER");
         KeplerPassportPublicConfig memory config = _keplerPassportPublicConfig;
         require(config.price > 0, "NFT_NOT_SUPPORT");
-        (
-            address passport,
-            uint8 itemId,
-            uint256 totalSupply,
-            uint256 tokenAmount
-        ) = isPromotional == 1
-                ? _getPromotionKeplerParmeters(amount)
-                : _getPublicKeplerParmeters(amount);
+        (address passport, uint8 itemId, uint256 totalSupply, uint256 tokenAmount) = isPromotional == 1
+            ? _getPromotionKeplerParmeters(amount)
+            : _getPublicKeplerParmeters(amount);
 
         _verifyAndUpdateBuyAmount(passport, amount);
         _verifyAndUpdateSaleAmount(itemId, amount, totalSupply);
@@ -154,12 +122,10 @@ contract PassportMine is
         _verifySignature(amount, referrer, isPromotional, signature);
         require(amount > 0, "ZERO_AMOUNT");
         require(msg.sender != referrer, "INVALID_REFERRER");
-        (
-            address passport,
-            uint8 itemId,
-            uint256 totalSupply,
-            uint256 tokenAmount
-        ) = _getUniverseParmeters(isPromotional, amount);
+        (address passport, uint8 itemId, uint256 totalSupply, uint256 tokenAmount) = _getUniverseParmeters(
+            isPromotional,
+            amount
+        );
 
         _verifyAndUpdateBuyAmount(passport, amount);
         _verifyAndUpdateSaleAmount(itemId, amount, totalSupply);
@@ -199,26 +165,13 @@ contract PassportMine is
         transferTokenTo(currency, _vault, tokenAmount - commissionAmount);
     }
 
-    function _verifyAndUpdateSaleAmount(
-        uint8 item,
-        uint256 amount,
-        uint256 maxSupply
-    ) private {
-        require(
-            _passportSaleAmounts[item] + amount <= maxSupply,
-            "EXCEED_SALE_SUPPLY"
-        );
+    function _verifyAndUpdateSaleAmount(uint8 item, uint256 amount, uint256 maxSupply) private {
+        require(_passportSaleAmounts[item] + amount <= maxSupply, "EXCEED_SALE_SUPPLY");
         _passportSaleAmounts[item] += amount;
     }
 
-    function _verifyAndUpdateBuyAmount(address passport, uint256 amount)
-        private
-    {
-        require(
-            _userPassportBuyAmounts[msg.sender][passport] + amount <=
-                MAX_BUY_AMOUNT,
-            "EXCEED_MAX_BUY_AMOUNT"
-        );
+    function _verifyAndUpdateBuyAmount(address passport, uint256 amount) private {
+        require(_userPassportBuyAmounts[msg.sender][passport] + amount <= MAX_BUY_AMOUNT, "EXCEED_MAX_BUY_AMOUNT");
 
         _userPassportBuyAmounts[msg.sender][passport] += amount;
     }
@@ -230,47 +183,27 @@ contract PassportMine is
         bytes memory signature
     ) private view {
         require(
-            _signer ==
-                Signature.getSigner(
-                    keccak256Args(msg.sender, amount, referrer, isPromotional),
-                    signature
-                ),
+            _signer == Signature.getSigner(keccak256Args(msg.sender, amount, referrer, isPromotional), signature),
             "INVALID_SIGNATURE"
         );
     }
 
-    function _getUniverseParmeters(uint8 isPromotional, uint256 amount)
-        private
-        view
-        returns (
-            address passport,
-            uint8 itemId,
-            uint256 totalSupply,
-            uint256 tokenAmount
-        )
-    {
+    function _getUniverseParmeters(
+        uint8 isPromotional,
+        uint256 amount
+    ) private view returns (address passport, uint8 itemId, uint256 totalSupply, uint256 tokenAmount) {
         UniversePassportConfig memory config = _universePassportConfig;
         require(config.publicPrice > 0, "NFT_NOT_SUPPORT");
         itemId = ITEM_UNIVERSE_SALE_AMOUNT;
-        tokenAmount =
-            (isPromotional == 1 ? config.promotionPrice : config.publicPrice) *
-            amount;
+        tokenAmount = (isPromotional == 1 ? config.promotionPrice : config.publicPrice) * amount;
         totalSupply = config.maxSupply;
         passport = config.passport;
     }
 
-    function _getPromotionKeplerParmeters(uint256 amount)
-        private
-        view
-        returns (
-            address passport,
-            uint8 itemId,
-            uint256 totalSupply,
-            uint256 tokenAmount
-        )
-    {
-        KeplerPassportPromotionConfig
-            memory config = _keplerPassportPromotionConfig;
+    function _getPromotionKeplerParmeters(
+        uint256 amount
+    ) private view returns (address passport, uint8 itemId, uint256 totalSupply, uint256 tokenAmount) {
+        KeplerPassportPromotionConfig memory config = _keplerPassportPromotionConfig;
         require(config.stage1Price > 0, "NFT_NOT_SUPPORT");
         passport = config.passport;
         itemId = ITEM_KEPLER_PROMOTION_SALE_AMOUNT;
@@ -285,25 +218,13 @@ contract PassportMine is
         }
     }
 
-    function queryReferenceRecordings(address referrer)
-        external
-        view
-        override
-        returns (ReferenceRecording[] memory)
-    {
+    function queryReferenceRecordings(address referrer) external view override returns (ReferenceRecording[] memory) {
         return _referenceRecordings[referrer];
     }
 
-    function _getPublicKeplerParmeters(uint256 amount)
-        private
-        view
-        returns (
-            address passport,
-            uint8 itemId,
-            uint256 totalSupply,
-            uint256 tokenAmount
-        )
-    {
+    function _getPublicKeplerParmeters(
+        uint256 amount
+    ) private view returns (address passport, uint8 itemId, uint256 totalSupply, uint256 tokenAmount) {
         KeplerPassportPublicConfig memory config = _keplerPassportPublicConfig;
         require(config.price > 0, "NFT_NOT_SUPPORT");
         passport = config.passport;
@@ -318,9 +239,6 @@ contract PassportMine is
         address referrer,
         uint8 isPromotional
     ) public pure returns (bytes32) {
-        return
-            keccak256(
-                abi.encodePacked(sender, amount, referrer, isPromotional)
-            );
+        return keccak256(abi.encodePacked(sender, amount, referrer, isPromotional));
     }
 }

@@ -1,28 +1,38 @@
+// SPDX-License-Identifier: MIT
 
 pragma solidity ^0.8.4;
 
 interface IPresale {
-    event Buy(
+    event BuyEvent(
+        uint256 orderId,
         address indexed user,
-        address indexed referer,
-        uint256 buyAmount,
-        uint256 reward
+        address indexed referrer,
+        address token,
+        uint256 tokenAmount,
+        address currency,
+        uint256 currencyAmount,
+        uint256 usdAmount,
+        uint256 reward,
+        uint256 lockPeriods,
+        uint256 timestamp
     );
 
-    event Claim(
+    event ClaimEvent(
         address indexed user,
         uint256 index,
-        uint256 amount
+        uint256 amount,
+        uint256 timestamp
     );
 
     struct BuyRecord {
         address buyer;
         address referrer;
         uint256 vTokenAmount;
-        address feeToken;
-        uint256 feeTokenAmount;
-        uint256 referrerReward;
-        uint256 buyTime;
+        address currency;
+        uint256 currencyAmount;
+        uint256 usdAmount;
+        uint256 reward;
+        uint256 time;
         uint256 lockPeriods;
     }
 
@@ -44,34 +54,19 @@ interface IPresale {
         uint256 refeererMinBuyAmount;
     }
 
-    function buy(
-        address usdToken,
-        uint256 usdAmount,
-        uint256 lockPeriods,
-        address referrer
-    ) external;
+    function buy2(address usdToken, uint256 usdAmount, address referrer) external payable;
 
-    function queryStableCoins()
-        external
-        view
-        returns (address[] memory stableCoins);
+    function buy(address usdToken, uint256 usdAmount, address referrer, bytes memory signature) external payable;
+
+    function queryStableCoins() external view returns (address[] memory stableCoins);
 
     function claim() external;
 
-    function queryClaimAmount(address user, uint256 claimIndex)
-        external
-        view
-        returns (uint256 claimAmount);
+    function queryClaimAmount(address user, uint256 claimIndex) external view returns (uint256 claimAmount);
 
-    function queryClaimables(address user)
-        external
-        view
-        returns (Claimable[] memory);
+    function queryClaimables(address user) external view returns (Claimable[] memory);
 
-    function queryBuyRecords(address user)
-        external
-        view
-        returns (BuyRecord[] memory);
+    function queryBuyRecords(address user) external view returns (BuyRecord[] memory);
 
     function queryConfig() external view returns (Config memory);
 

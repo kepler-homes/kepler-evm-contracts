@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT
 
 pragma solidity ^0.8.4;
 
@@ -8,13 +9,7 @@ import "@openzeppelin/contracts/utils/Strings.sol";
 import "../common/Minable.sol";
 import "./IPassport.sol";
 
-contract Passport is
-    ERC721EnumerableUpgradeable,
-    ERC2981Upgradeable,
-    OwnableUpgradeable,
-    Minable,
-    IPassport
-{
+contract Passport is ERC721EnumerableUpgradeable, ERC2981Upgradeable, OwnableUpgradeable, Minable, IPassport {
     using Strings for uint256;
     string public baseURI;
     uint256 public nextTokenId;
@@ -38,16 +33,9 @@ contract Passport is
         nextTokenId = 1001;
     }
 
-    function supportsInterface(bytes4 interfaceId)
-        public
-        view
-        override(
-            IERC165Upgradeable,
-            ERC721EnumerableUpgradeable,
-            ERC2981Upgradeable
-        )
-        returns (bool)
-    {
+    function supportsInterface(
+        bytes4 interfaceId
+    ) public view override(IERC165Upgradeable, ERC721EnumerableUpgradeable, ERC2981Upgradeable) returns (bool) {
         return
             interfaceId == type(IPassport).interfaceId ||
             ERC721EnumerableUpgradeable.supportsInterface(interfaceId) ||
@@ -82,12 +70,7 @@ contract Passport is
         _resetTokenRoyalty(tokenId);
     }
 
-    function tokensOfOwner(address owner)
-        public
-        view
-        override
-        returns (uint256[] memory tokenIds)
-    {
+    function tokensOfOwner(address owner) public view override returns (uint256[] memory tokenIds) {
         uint256 balance = balanceOf(owner);
         tokenIds = new uint256[](balance);
         for (uint256 i; i < balance; i++) {
@@ -99,12 +82,9 @@ contract Passport is
         return baseURI;
     }
 
-    function tokenURI(uint256 tokenId)
-        public
-        view
-        override(ERC721Upgradeable, IERC721MetadataUpgradeable)
-        returns (string memory)
-    {
+    function tokenURI(
+        uint256 tokenId
+    ) public view override(ERC721Upgradeable, IERC721MetadataUpgradeable) returns (string memory) {
         return string(abi.encodePacked(baseURI, tokenId.toString()));
     }
 
@@ -116,10 +96,7 @@ contract Passport is
         return _feeDenominator();
     }
 
-    function setDefaultRoyalty(address receiver, uint96 feeNumerator)
-        external
-        onlyOwner
-    {
+    function setDefaultRoyalty(address receiver, uint96 feeNumerator) external onlyOwner {
         _setDefaultRoyalty(receiver, feeNumerator);
     }
 
@@ -127,11 +104,7 @@ contract Passport is
         _deleteDefaultRoyalty();
     }
 
-    function setTokenRoyalty(
-        uint256 tokenId,
-        address receiver,
-        uint96 feeNumerator
-    ) external {
+    function setTokenRoyalty(uint256 tokenId, address receiver, uint96 feeNumerator) external {
         require(_isApprovedOrOwner(msg.sender, tokenId), "INVALID_ACCESS");
         _setTokenRoyalty(tokenId, receiver, feeNumerator);
     }

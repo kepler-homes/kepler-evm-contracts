@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT
 
 pragma solidity ^0.8.4;
 
@@ -66,25 +67,16 @@ contract PassportStake is
         _lockUnitSpan = lockUnitSpan;
     }
 
-    function batchStake(uint256[] memory tokenIds, uint256 lockUnits)
-        external
-        override
-        isNotContractCall
-        nonReentrant
-        whenNotPaused
-    {
+    function batchStake(
+        uint256[] memory tokenIds,
+        uint256 lockUnits
+    ) external override isNotContractCall nonReentrant whenNotPaused {
         for (uint256 i; i < tokenIds.length; i++) {
             _stake(tokenIds[i], lockUnits);
         }
     }
 
-    function stake(uint256 tokenId, uint256 lockUnits)
-        external
-        override
-        isNotContractCall
-        nonReentrant
-        whenNotPaused
-    {
+    function stake(uint256 tokenId, uint256 lockUnits) external override isNotContractCall nonReentrant whenNotPaused {
         _stake(tokenId, lockUnits);
     }
 
@@ -101,23 +93,11 @@ contract PassportStake is
         emit Stake(user, tokenId, lockUnits);
     }
 
-    function unstake(uint256 tokenId)
-        external
-        override
-        isNotContractCall
-        nonReentrant
-        whenNotPaused
-    {
+    function unstake(uint256 tokenId) external override isNotContractCall nonReentrant whenNotPaused {
         _unstake(tokenId);
     }
 
-    function batchUnstake(uint256[] memory tokenIds)
-        external
-        override
-        isNotContractCall
-        nonReentrant
-        whenNotPaused
-    {
+    function batchUnstake(uint256[] memory tokenIds) external override isNotContractCall nonReentrant whenNotPaused {
         for (uint256 i; i < tokenIds.length; i++) {
             _unstake(tokenIds[i]);
         }
@@ -129,10 +109,7 @@ contract PassportStake is
         uint256 lockUnits = _lockUnits[tokenId];
         require(stakeTime > 0 && lockUnits > 0, "INVLAID_ACCESS");
 
-        require(
-            stakeTime + lockUnits * _lockUnitSpan < block.timestamp,
-            "INSUFFICIENT_LOCK_TIME"
-        );
+        require(stakeTime + lockUnits * _lockUnitSpan < block.timestamp, "INSUFFICIENT_LOCK_TIME");
 
         require(_userTokenIds[user].remove(tokenId), "INVALID_TOKEN_ID");
         require(_tokenIds.remove(tokenId), "INVALID_TOKEN_ID");
@@ -143,15 +120,9 @@ contract PassportStake is
         emit Unstake(user, tokenId);
     }
 
-    function consumeRandomWords(uint256[] memory randomWords)
-        external
-        override
-    {
+    function consumeRandomWords(uint256[] memory randomWords) external override {
         uint256 randomNumber = randomWords[0];
-        require(
-            msg.sender == _proxy || msg.sender == owner(),
-            "INVALID_ACCESS"
-        );
+        require(msg.sender == _proxy || msg.sender == owner(), "INVALID_ACCESS");
         uint256[] memory tokenIds = new uint256[](_tokenIds.length());
         uint256 length;
         uint256 current = block.timestamp;
@@ -168,19 +139,13 @@ contract PassportStake is
         uint256 rewardPerLucky = _rewardPerDraw / luckyCount;
         uint256[] memory luckyTokenIds = new uint256[](luckyCount);
         for (uint256 i = 0; i < luckyCount; i++) {
-            uint256 index = _drawOneLottery(
-                tokenIds,
-                length,
-                randomNumber + i * 1024 * 1024
-            );
+            uint256 index = _drawOneLottery(tokenIds, length, randomNumber + i * 1024 * 1024);
             uint256 tokenId = tokenIds[index];
             luckyTokenIds[i] = tokenId;
             tokenIds[index] = tokenIds[length - 1];
             length = length - 1;
             _pendingRewards[_tokenIdOwners[tokenId]] += rewardPerLucky;
-            _userLotteries[_tokenIdOwners[tokenId]].push(
-                UserLottery(_lotterySequence, tokenId, rewardPerLucky)
-            );
+            _userLotteries[_tokenIdOwners[tokenId]].push(UserLottery(_lotterySequence, tokenId, rewardPerLucky));
         }
         _lotteries[_lotterySequence] = luckyTokenIds;
         emit DrawLottery(_lotterySequence, luckyTokenIds);
@@ -199,9 +164,7 @@ contract PassportStake is
             ticket += _lockUnits[tokenIds[i]] * span;
             tickets[i] = ticket;
         }
-        uint256 randomTicket = uint256(
-            keccak256(abi.encodePacked(randomNumber))
-        ) % ticket;
+        uint256 randomTicket = uint256(keccak256(abi.encodePacked(randomNumber))) % ticket;
 
         uint256 lastTicket = 0;
         for (uint256 i; i < length; i++) {
@@ -213,13 +176,7 @@ contract PassportStake is
         return 0;
     }
 
-    function claim()
-        external
-        override
-        isNotContractCall
-        nonReentrant
-        whenNotPaused
-    {
+    function claim() external override isNotContractCall nonReentrant whenNotPaused {
         address user = msg.sender;
         uint256 pendingReward = _pendingRewards[user];
         require(pendingReward > 0, "NO_REWARD");
@@ -227,14 +184,9 @@ contract PassportStake is
         transferTokenTo(_rewardToken, user, pendingReward);
     }
 
-    function queryUserView(address user)
-        external
-        view
-        override
-        returns (UserView memory uv)
-    {
+    function queryUserView(address user) external view override returns (UserView memory uv) {
         uv.pendingReward = queryPendingReward(user);
-        uv.tokenIds = queryUserTokenIds(user);
+        uv.tokenIds = queryUserTokenIdValues(user);
         uv.lotteries = _userLotteries[user];
         uint256[] memory stakeTimes = new uint256[](uv.tokenIds.length);
         uint256[] memory lockUnits = new uint256[](uv.tokenIds.length);
@@ -246,15 +198,8 @@ contract PassportStake is
         uv.lockUnits = lockUnits;
     }
 
-    function queryGlobalView()
-        external
-        view
-        override
-        returns (GlobalView memory gv)
-    {
-        LotteryView[] memory lotteries = new LotteryView[](
-            _lotterySequence - 1
-        );
+    function queryGlobalView() external view override returns (GlobalView memory gv) {
+        LotteryView[] memory lotteries = new LotteryView[](_lotterySequence - 1);
         for (uint256 i = 0; i < lotteries.length; i++) {
             lotteries[i] = LotteryView(i + 1, _lotteries[i + 1]);
         }
@@ -274,11 +219,7 @@ contract PassportStake is
         return _pendingRewards[user];
     }
 
-    function queryUserTokenIds(address user)
-        private
-        view
-        returns (uint256[] memory tokenIds)
-    {
+    function queryUserTokenIdValues(address user) private view returns (uint256[] memory tokenIds) {
         tokenIds = new uint256[](_userTokenIds[user].length());
         for (uint256 i; i < tokenIds.length; i++) {
             tokenIds[i] = _userTokenIds[user].at(i);
